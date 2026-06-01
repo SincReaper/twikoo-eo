@@ -26,14 +26,17 @@ import {
   getAvatar,
   isQQ,
   addQQMailSuffix,
+  getQQNick,
   getQQAvatar,
   getPasswordStatus,
   preCheckSpam,
   checkTurnstileCaptcha,
   checkGeeTestCaptcha,
+  checkCapCaptcha,
   getConfig,
   getConfigForAdmin,
-  validate
+  validate,
+  checkCommentOwnership
 } from 'twikoo-func/utils'
 import {
   jsonParse,
@@ -50,7 +53,7 @@ import logger from 'twikoo-func/utils/logger'
 import constants from 'twikoo-func/utils/constants'
 
 const { RES_CODE, MAX_REQUEST_TIMES } = constants
-const VERSION = '1.7.3'
+const VERSION = '1.7.11'
 
 // 注入自定义依赖（对标 Cloudflare 版本）
 setCustomLibs({
@@ -560,6 +563,24 @@ async function commentDeleteForAdmin (event, db, accessToken) {
   return res
 }
 
+// 用户删除自己的评论
+async function commentDeleteForUser (event, db, accessToken) {
+  const res = {}
+  try {
+    const uid = accessToken
+    await checkCommentOwnership(event.id, uid, async (id) => {
+      return db.getComment(id)
+    })
+    await db.deleteComment(event.id)
+    res.code = RES_CODE.SUCCESS
+    res.deleted = 1
+  } catch (e) {
+    res.code = RES_CODE.FAIL
+    res.message = e.message
+  }
+  return res
+}
+
 async function commentImportForAdmin (event, db, accessToken) {
   const res = {}
   let logText = ''
@@ -819,7 +840,7 @@ async function limitFilter (db, ip) {
 
 async function checkCaptcha (event, ip) {
   const provider = config.CAPTCHA_PROVIDER
-  if ((!provider || provider === 'Turnstile') && config.TURNSTILE_SITE_KEY && config.TURNSTILE_SECRET_KEY) {
+  if (provider === 'Turnstile' && config.TURNSTILE_SITE_KEY && config.TURNSTILE_SECRET_KEY) {
     await checkTurnstileCaptcha({
       ip: ip,
       turnstileToken: event.turnstileToken,
@@ -834,6 +855,19 @@ async function checkCaptcha (event, ip) {
       geeTestPassToken: event.geeTestPassToken,
       geeTestGenTime: event.geeTestGenTime
     })
+  } else if (provider === 'Cap' && config.CAP_API_ENDPOINT && config.CAP_SECRET_KEY) {
+    if (!event.capToken) {
+      throw new Error('验证码 token 缺失，请刷新页面重试')
+    }
+    await checkCapCaptcha({
+      capToken: event.capToken,
+      capSecretKey: config.CAP_SECRET_KEY,
+      capApiEndpoint: config.CAP_API_ENDPOINT
+    })
+  } else if (provider === 'Cap') {
+    throw new Error('Cap 验证码配置不完整，请联系管理员')
+  } else if (provider) {
+    throw new Error(`不支持的验证码类型: ${provider}`)
   }
 }
 
@@ -1036,6 +1070,20 @@ export async function onRequest (context) {
   })
 }
 
+async function qqNickGet (event) {
+  const res = {}
+  try {
+    validate(event, ['qq'])
+    const nick = await getQQNick(event.qq, config.QQ_API_KEY)
+    res.code = RES_CODE.SUCCESS
+    res.nick = nick
+  } catch (e) {
+    res.code = RES_CODE.FAIL
+    res.message = e.message
+  }
+  return res
+}
+
 // POST 请求处理主逻辑
 async function handlePost (req, res) {
   let accessToken
@@ -1076,6 +1124,9 @@ async function handlePost (req, res) {
         break
       case 'COMMENT_DELETE_FOR_ADMIN':
         result = await commentDeleteForAdmin(event, db, accessToken)
+        break
+      case 'COMMENT_DELETE_FOR_USER':
+        result = await commentDeleteForUser(event, db, accessToken)
         break
       case 'COMMENT_IMPORT_FOR_ADMIN':
         result = await commentImportForAdmin(event, db, accessToken)
@@ -1121,6 +1172,9 @@ async function handlePost (req, res) {
         break
       case 'COMMENT_EXPORT_FOR_ADMIN':
         result = await commentExportForAdmin(event, db, accessToken)
+        break
+      case 'GET_QQ_NICK':
+        result = await qqNickGet(event)
         break
       default:
         if (event.event) {
