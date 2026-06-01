@@ -102,7 +102,6 @@ const requiredFiles = [
   'cloud-functions/index.js',
   'cloud-functions/ip2region-searcher.js',
   'cloud-functions/ip2region-data.js',
-  'edge-functions/api/kv.js',
   'package.json'
 ]
 
@@ -122,15 +121,13 @@ if (allFilesExist) {
   console.log('构建完成！所有文件已就绪。')
   console.log('')
   console.log('项目结构：')
-  console.log('  cloud-functions/index.js            - Node Function 主入口')
+  console.log('  cloud-functions/index.js            - Node Function 主入口（含 Blob 数据库层）')
   console.log('  cloud-functions/ip2region-searcher.js - IP 归属地查询器')
   console.log('  cloud-functions/ip2region-data.js   - IP 数据库（自动生成）')
-  console.log('  edge-functions/api/kv.js           - Edge Function KV API')
   console.log('')
   console.log('部署说明：')
   console.log('  1. 在 EdgeOne Pages 控制台创建项目')
-  console.log('  2. 创建 KV 命名空间并绑定，变量名：TWIKOO_KV')
-  console.log('  3. 推送代码触发部署')
+  console.log('  2. 推送代码触发部署（Blob 存储自动初始化，无需额外配置）')
 } else {
   console.log('错误：部分必要文件缺失，请检查项目结构')
   process.exit(1)
