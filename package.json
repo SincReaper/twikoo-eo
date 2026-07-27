@@ -26,8 +26,11 @@
   "dependencies": {
     "@edgeone/pages-blob": "latest",
     "@imaegoo/node-ip2region": "^2.1.1",
+    "@valibot/to-json-schema": "^1.7.1",
     "bowser": "^2.13.1",
+    "effect": "^3.22.0",
     "pako": "^2.1.0",
+    "sury": "^11.0.0-alpha.11",
     "twikoo-func": "^1.7.11",
     "uuid": "^8.3.2",
     "xss": "^1.0.15"
